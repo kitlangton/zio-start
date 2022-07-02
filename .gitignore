@@ -1,0 +1,11 @@
+.bsp/
+.idea/
+node_modules/
+target/
+project/project
+
+# Local Netlify folder
+.netlify
+
+.DS_Store
+dist
