@@ -1,3 +1,3 @@
 # zio-start
 
-An interactive ZIO app wizard.
+A wizard for generating new ZIO applications.
