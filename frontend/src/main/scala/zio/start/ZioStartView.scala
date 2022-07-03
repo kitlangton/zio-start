@@ -3,6 +3,7 @@ package zio.start
 import animus.{SignalOps, SignalSeqOps, Transitions}
 import com.raquo.laminar.api.L._
 import components.Component
+import org.scalajs.dom.window.alert
 import zip.FileGenerator
 
 object ZioStartView extends Component {
@@ -29,16 +30,11 @@ object ZioStartView extends Component {
     }
 
   val $searchIndex: Signal[Int] =
-    searchIndex.signal.combineWithFn($dependencies) { (index, deps) =>
-      val numDeps = deps.size
-      if (index < 0) 0
-      else if (index >= numDeps) numDeps - 1
-      else index
-    }
+    searchIndex.signal
 
   val $groupDefault =
     groupVar.signal.map { str =>
-      if (str.isEmpty) "io.github.kitlangton"
+      if (str.isEmpty) "com.kitlangton"
       else str
     }
 
@@ -55,6 +51,38 @@ object ZioStartView extends Component {
 
   def body =
     div(
+      $dependencies.changes.mapToStrict(0) --> searchIndex,
+      windowEvents.onKeyDown.withCurrentValueOf($dependencies) --> { value =>
+        val (e, deps)   = value
+        val isSearching = searchMode.now()
+        e.key match {
+          case "ArrowUp" if isSearching =>
+            searchIndex.update { idx =>
+              if (idx > 0) idx - 1
+              else idx
+            }
+          case "ArrowDown" if isSearching =>
+            searchIndex.update { idx =>
+              if (idx < deps.size - 1) idx + 1
+              else idx
+            }
+          case "Enter" if isSearching =>
+            val dep = deps(searchIndex.now())
+            selectedDependencies.update { deps =>
+              if (deps.contains(dep)) deps - dep
+              else deps + dep
+            }
+          case "d" if e.ctrlKey =>
+            if (!isSearching)
+              searchIndex.set(0)
+            searchMode.update(!_)
+          case "Escape" if isSearching =>
+            e.preventDefault()
+            e.stopPropagation()
+            searchMode.set(false)
+          case _ =>
+        }
+      },
       searchMode.signal --> { m =>
         if (!m) queryVar.set("")
       },
@@ -108,7 +136,7 @@ object ZioStartView extends Component {
                   span("ZIO", cls("text-red-600 font-bold tracking-wider")),
                   s"${nbsp}project with the dependencies you want."
                 ),
-                div(cls("mt-4"), "Download your project directory and get started.")
+                div(cls("mt-4"), "When you're finish, download your project folder and get started.")
               ),
               HorizontalSeparator()
             ),
@@ -116,8 +144,9 @@ object ZioStartView extends Component {
             FormField( //
               "group",
               groupVar,
-              Val("io.github.kitlangton"),
-              _.replace(" ", ".")
+              Val("com.kitlangton"),
+              _.replace(" ", "."),
+              true
             ),
             FormField( //
               "artifact",
@@ -139,39 +168,83 @@ object ZioStartView extends Component {
             position.relative,
             cls("bg-gray-900"),
             div(
-              SectionHeading("DEPENDENCIES"),
-              height("37px"),
-              Transitions.height(searchMode.signal.map(!_)),
-              Transitions.opacity(searchMode.signal.map(!_))
-            ),
-            SearchField(queryVar, searchMode).body,
-            HorizontalSeparator().body.amend(position.absolute),
-            children <-- $dependencies.splitTransition(identity) { (_, dep, _, t) =>
               div(
-                DependencyView(
-                  dep,
-                  searchMode.signal,
-                  selectedDependencies.signal.map(_.contains(dep)),
-                  isSearching =>
-                    if (isSearching) {
-                      selectedDependencies.update { deps =>
-                        if (deps.contains(dep)) deps - dep
-                        else deps + dep
+                SectionHeading("DEPENDENCIES"),
+                height("37px"),
+                Transitions.height(searchMode.signal.map(!_)),
+                Transitions.opacity(searchMode.signal.map(!_))
+              ),
+              SearchField(queryVar, searchMode).body,
+              HorizontalSeparator().body.amend(position.absolute),
+              cls("sticky top-0 relative"),
+              zIndex(110)
+            ),
+            div(
+              overflowY.scroll,
+              children <-- $dependencies.map(_.zipWithIndex).splitTransition(_._1) { case (_, (dep, _), id, t) =>
+                val $idx = id.map(_._2)
+                div(
+                  DependencyView(
+                    dependency = dep,
+                    isSearching = searchMode.signal,
+                    isSelected = selectedDependencies.signal.map(_.contains(dep)),
+                    isHighlighted = $searchIndex.combineWithFn($idx, searchMode)(_ == _ && _),
+                    handleClick = isSearching =>
+                      if (isSearching) {
+                        selectedDependencies.update { deps =>
+                          if (deps.contains(dep)) deps - dep
+                          else deps + dep
+                        }
+                        //                      searchMode.set(false)
+                      } else {
+                        selectedDependencies.update(_ - dep)
                       }
-                      //                      searchMode.set(false)
-                    } else {
-                      selectedDependencies.update(_ - dep)
-                    }
-                ),
-                t.height,
-                t.opacity
-              )
-            },
+                  ),
+                  t.height,
+                  t.opacity
+                )
+              }
+            ),
             HorizontalSeparator().body.amend(
               Transitions.opacity($dependencies.signal.map(_.nonEmpty))
             ),
+            position.relative,
+            div(
+              flexGrow(1)
+            ),
+            div(
+              cls("h-16")
+            ),
+            div(
+              cls("w-full"),
+              div(
+                onClick --> { _ =>
+                  searchMode.set(false)
+                  queryVar.set("")
+                  searchIndex.set(0)
+                },
+                cls(
+                  "bottom-0 sticky z-index-100 bg-gray-900 w-full",
+                  "cursor-pointer hover:bg-gray-800"
+                ),
+                HorizontalSeparator(),
+                div(
+                  cls(
+                    "p-4 font-bold text-gray-400 tracking-wider",
+                    "cursor-pointer text-center"
+                  ),
+                  "DONE"
+                ),
+                Transitions.opacity(searchMode.signal)
+              ),
+              position.absolute,
+              bottom <-- searchMode.signal.map {
+                if (_) 0.0
+                else -40.0
+              }.spring.px
+            ),
             left("-1px"),
-            cls("border-x")
+            cls("border-x flex flex-col")
           )
         },
         Column {
@@ -179,7 +252,19 @@ object ZioStartView extends Component {
             SectionHeading("ACTIONS"),
             div(
               cls("p-6 font-bold text-gray-400 subtle-blue cursor-pointer"),
-              "GENERATE AND DOWNLOAD",
+              cls("fill-gray-500 hover:fill-orange-400"),
+              div(
+                cls("flex items-center"),
+                Icons.folderDownload,
+                div(
+                  cls("pl-3"),
+                  "DOWNLOAD PROJECT"
+                )
+              ),
+              div(
+                "",
+                cls("text-xs text-gray-500")
+              ),
               composeEvents(onClick)(_.sample($packageDefault)) --> { defaultPackage =>
                 val group        = groupVar.now()
                 val artifact     = artifactVar.now()
@@ -192,7 +277,10 @@ object ZioStartView extends Component {
                     group,
                     artifact,
                     packageName,
-                    selected.toList.sortBy(d => (d.group, d.artifact))
+                    selected.toList
+                      .flatMap(d => d :: d.included)
+                      .distinct
+                      .sortBy(d => (d.group, d.artifact))
                   )
 
                 FileGenerator.generateZip(artifact, fileStructure)
@@ -200,13 +288,21 @@ object ZioStartView extends Component {
             ),
             HorizontalSeparator(),
             div(
-              cls("p-6 font-bold text-gray-400 subtle-blue cursor-pointer"),
-              "PREVIEW GENERATED CODE"
+              cls("p-6 font-bold text-gray-600 hover:bg-gray-800"),
+              "PREVIEW GENERATED CODE",
+              div(
+                "COMING SOON",
+                cls("text-xs text-gray-700")
+              )
             ),
             HorizontalSeparator(),
             div(
-              cls("p-6 font-bold text-gray-400 subtle-blue cursor-pointer"),
-              "COPY LINK"
+              cls("p-6 font-bold text-gray-600 hover:bg-gray-800"),
+              "COPY LINK",
+              div(
+                "COMING SOON",
+                cls("text-xs text-gray-700")
+              )
             ),
             HorizontalSeparator()
           )
@@ -261,14 +357,8 @@ final case class SearchField(
 
   def body =
     div(
-      windowEvents.onKeyDown --> { key =>
-        key.key match {
-          case "d" if key.ctrlKey =>
-            searchVar.update(!_)
-          case _ =>
-
-        }
-      },
+      cls("transition-colors bg-gray-900"),
+      cls.toggle("subtle-highlight") <-- searchVar,
       onClick --> { _ =>
         searchVar.set(true)
       },
@@ -295,7 +385,7 @@ final case class SearchField(
             div(
               cls("flex justify-between items-center"),
               div(
-                cls("pl-3 font-bold text-gray-400 tracking-wider whitespace-nowrap w-full"),
+                cls("pl-2 font-bold text-gray-400 tracking-wider whitespace-nowrap w-full"),
                 div("ADD DEPENDENCY")
               ),
               div(
@@ -311,17 +401,34 @@ final case class SearchField(
 //            hidden <-- searchVar
           ),
           div(
-            input(
-              textTransform.uppercase,
-              focus <-- searchVar.signal.changes,
-              cls("pl-3 font-bold tracking-wider"),
-              background("none"),
-              outline("none"),
-              placeholder("SEARCH"),
-              controlled(
-                value <-- queryVar,
-                onInput.mapToValue --> queryVar
+            div(
+              cls("flex relative"),
+              input(
+                textTransform.uppercase,
+                focus <-- searchVar.signal.changes,
+                cls("pl-3 font-bold tracking-wider"),
+                background("none"),
+                outline("none"),
+                placeholder("SEARCH"),
+                onKeyDown --> { e =>
+                  if (e.key == "ArrowDown" || e.key == "ArrowUp") {
+                    e.preventDefault()
+                  }
+                },
+                controlled(
+                  value <-- queryVar,
+                  onInput.mapToValue --> queryVar
+                )
               )
+//              div(
+//                position.absolute,
+//                right("0px"),
+//                "ESC",
+//                cls(
+//                  "text-gray-400 text-xs tracking-wider ml-3 self-end whitespace-nowrap flex-end",
+//                  "p-1 px-2 bg-gray-800 rounded align-end self-end"
+//                )
+//              )
             ),
             hidden <-- $notSearching,
             Transitions.height(searchVar.signal),
@@ -336,7 +443,8 @@ final case class DependencyView(
   dependency: Dependency,
   isSearching: Signal[Boolean],
   isSelected: Signal[Boolean],
-  handleClick: (Boolean) => Unit
+  isHighlighted: Signal[Boolean],
+  handleClick: Boolean => Unit
 ) extends Component {
 
   val isHovered = Var(false)
@@ -371,75 +479,87 @@ final case class DependencyView(
       onMouseEnter.mapToStrict(true) --> isHovered,
       onMouseLeave.mapToStrict(false) --> isHovered,
       composeEvents(onClick)(_.sample(isSearching)) --> { bool => handleClick(bool) },
+//      cls("w-full bg-red-500 hover:bg-red-700 cursor-pointer"),
       div(
-        cls("p-4 cursor-pointer"),
-        cls.toggle("subtle-red") <-- $isHoveredAndNotSearching,
-        cls.toggle("subtle-green") <-- $isHoveredAndSearching,
+        width("100%"),
+        cls("flex items-center"),
+        flexGrow(1),
+        position.relative,
         div(
-          cls("flex items-center"),
-          div(
-            cls("w-full"),
-            div(
-              cls("flex items-center font-medium text-sm text-green-600 mr-2"),
-              s"ADDED${nbsp}"
-            ),
-            Transitions.width($showCheckmark),
-            Transitions.opacity($showCheckmark)
-          ),
-          div(
-            div(
-              cls("flex items-center w-6"),
-              div(
-                div(
-                  cls("flex items-center fill-green-600"),
-                  Icons.add,
-                  div(cls("w-2"), nbsp)
-                ),
-                Transitions.width($showAdd),
-                Transitions.opacity($showAdd)
-              ),
-              div(
-                div(
-                  cls("flex items-center"),
-                  opacity(0.7),
-                  Icons.cylinder,
-                  div(cls("w-2"), nbsp)
-                ),
-                Transitions.width($showCylinderIcon),
-                Transitions.opacity($showCylinderIcon)
-              ),
-              div(
-                opacity <-- $isHovered.map(if (_) 1.0 else 0.0).spring,
-                div(
-                  cls("flex items-center"),
-                  Icons.remove,
-                  div(cls("w-2"), nbsp)
-                ),
-                Transitions.width($isHoveredAndNotSearching)
-              )
-            ),
-            Transitions.width($showCheckmark.map(!_))
-          ),
-          div(
-            cls("flex justify-between items-center w-full"),
-            div(
-              cls("font-bold text-gray-300 tracking-wider"),
-              dependency.artifact.toUpperCase
-            ),
-            a(
-              cls("stroke-gray-700 hover:stroke-blue-500"),
-              width("20px"),
-              onMouseEnter.mapToStrict(false) --> isHovered,
-              onMouseLeave.mapToStrict(true) --> isHovered,
-              Icons.externalLink,
-              href(dependency.url),
-              target("_blank")
-            )
-          )
+          cls("inset-y-0 absolute w-0.5"),
+          cls <-- isHighlighted.map(if (_) "bg-green-800" else "")
         ),
         div(
-          cls("text-gray-400 mt-2"),
-          dependency.description
+          cls("p-4 cursor-pointer w-full"),
+          cls.toggle("subtle-red") <-- $isHoveredAndNotSearching,
+          cls.toggle("subtle-green") <-- $isHoveredAndSearching,
+          div(
+            cls("flex items-center"),
+            div(
+              cls("w-full"),
+              div(
+                cls("flex items-center font-medium text-sm text-green-600 mr-2"),
+                s"ADDED${nbsp}"
+              ),
+              Transitions.width($showCheckmark),
+              Transitions.opacity($showCheckmark)
+            ),
+            div(
+              div(
+                cls("flex items-center w-6"),
+                div(
+                  div(
+                    cls("flex items-center fill-green-600"),
+                    Icons.add,
+                    div(cls("w-2"), nbsp)
+                  ),
+                  Transitions.width($showAdd),
+                  Transitions.opacity($showAdd)
+                ),
+                div(
+                  div(
+                    cls("flex items-center"),
+                    opacity(0.7),
+                    Icons.cylinder,
+                    div(cls("w-2"), nbsp)
+                  ),
+                  Transitions.width($showCylinderIcon),
+                  Transitions.opacity($showCylinderIcon)
+                ),
+                div(
+                  opacity <-- $isHovered.map(if (_) 1.0 else 0.0).spring,
+                  div(
+                    cls("flex items-center"),
+                    Icons.remove,
+                    div(cls("w-2"), nbsp)
+                  ),
+                  Transitions.width($isHoveredAndNotSearching)
+                )
+              ),
+              Transitions.width($showCheckmark.map(!_))
+            ),
+            div(
+              cls("flex justify-between items-center w-full"),
+              div(
+                cls("font-bold text-gray-300 tracking-wider"),
+                dependency.name.toUpperCase
+              ),
+              a(
+                cls("stroke-gray-700 hover:stroke-blue-500"),
+                width("20px"),
+                onMouseEnter.mapToStrict(false) --> isHovered,
+                onMouseLeave.mapToStrict(true) --> isHovered,
+                Icons.externalLink,
+                href(dependency.url),
+                target("_blank"),
+                onClick --> { e => e.stopPropagation() }
+              )
+            )
+          ),
+          div(
+            cls("text-gray-400 mt-2"),
+            dependency.description
+          )
         )
       )
     )

@@ -7,7 +7,8 @@ final case class FormField(
   name: String,
   valueVar: Var[String],
   default: Signal[String],
-  mapping: String => String = identity
+  mapping: String => String = identity,
+  autofocused: Boolean = false
 ) extends Component {
 
   val isFocused = Var(false)
@@ -26,6 +27,13 @@ final case class FormField(
         name.toUpperCase
       ),
       input(
+        autoFocus(autofocused),
+        inContext { el =>
+          onFocus --> { _ =>
+            // select all text on focus
+            el.ref.select()
+          }
+        },
         focus <-- focusBus,
         cls("w-full"),
         outline("none"),

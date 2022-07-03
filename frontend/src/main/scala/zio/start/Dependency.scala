@@ -5,8 +5,12 @@ final case class Dependency(
   artifact: String,
   version: String,
   description: String,
-  url: String
+  url: String,
+  nameOverride: Option[String] = None,
+  included: List[Dependency] = Nil
 ) {
+  def name: String = nameOverride.getOrElse(artifact)
+
   def contains(query0: String): Boolean = {
     val query = query0.toLowerCase
     group.toLowerCase.contains(query) ||
@@ -35,7 +39,8 @@ object Dependency {
       artifact = "zhttp",
       version = "2.0.0-RC9",
       description = "A supercharged, ergonomic library for building HTTP servers.",
-      url = "https://github.com/dream11/zhttp"
+      url = "https://github.com/dream11/zhttp",
+      nameOverride = Some("zio-http")
     )
 
   val zioKafka =
@@ -83,14 +88,56 @@ object Dependency {
       url = "https://github.com/zio/zio-config"
     )
 
+  // TOOD: Waiting for ZIO 2 release
+  val caliban =
+    Dependency(
+      group = "com.github.ghostdogpr",
+      artifact = "caliban",
+      version = "2.0.0-RC2",
+      description = "Functional GraphQL library for Scala.",
+      url = "https://github.com/ghostdogpr/caliban"
+    )
+
+  val zioQuill =
+    Dependency(
+      group = "io.getquill",
+      artifact = "quill-jdbc-zio",
+      version = "4.0.0",
+      description = "Compile-time Language Integrated Queries.",
+      url = "https://github.com/zio/zio-quill",
+      nameOverride = Some("zio-quill"),
+      included = List(
+        Dependency(
+          group = "org.postgresql",
+          artifact = "postgresql",
+          version = "42.4.0",
+          description = "PostgreSQL driver for the Java language.",
+          url = ""
+        )
+      )
+    )
+
+  val zioPrelude =
+    Dependency(
+      group = "dev.zio",
+      artifact = "zio-prelude",
+      version = "1.0.0-RC15",
+      description = "A lightweight, distinctly Scala take on functional abstractions, with tight ZIO integration.",
+      url = "https://github.com/zio/zio-prelude"
+    )
+
   val all: List[Dependency] =
     List(
       zioHttp,
       zioJson,
-      zioKafka,
       zioLogging,
       zioProcess,
+      zioQuill,
       zioCli,
-      zioConfig
+      zioConfig,
+      zioPrelude,
+      // TODO: Waiting for ZIO 2 release
+//      caliban,
+      zioKafka
     )
 }
