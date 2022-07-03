@@ -136,7 +136,8 @@ object ZioStartView extends Component {
                   span("ZIO", cls("text-red-600 font-bold tracking-wider")),
                   s"${nbsp}project with the dependencies you want."
                 ),
-                div(cls("mt-4"), "When you're finish, download your project folder and get started.")
+                div(cls("mt-4"), "When you're finished, download your project folder and get started."),
+                div(cls("mt-4"), "Have fun!")
               ),
               HorizontalSeparator()
             ),
@@ -158,7 +159,8 @@ object ZioStartView extends Component {
               "package",
               packageVar,
               $packageDefault,
-              _.replace(" ", ".")
+              _.replace(" ", "."),
+              handleTab = Some(() => searchMode.set(true))
             )
           )
         },
@@ -166,6 +168,7 @@ object ZioStartView extends Component {
           List(
             zIndex(100),
             position.relative,
+            overflow.hidden,
             cls("bg-gray-900"),
             div(
               div(
@@ -251,6 +254,7 @@ object ZioStartView extends Component {
           div(
             SectionHeading("ACTIONS"),
             div(
+              tabIndex(0),
               cls("p-6 font-bold text-gray-400 subtle-blue cursor-pointer"),
               cls("fill-gray-500 hover:fill-orange-400"),
               div(
@@ -265,25 +269,19 @@ object ZioStartView extends Component {
                 "",
                 cls("text-xs text-gray-500")
               ),
+              cls("focus:bg-green-900 focus:text-green-300 focus:fill-green-400"),
+              outline("none"),
+              inContext { el =>
+                composeEvents(onKeyDown)(_.withCurrentValueOf($packageDefault)) --> { value =>
+                  val (e, defaultPackage) = value
+                  if (e.key == "Enter") {
+                    downloadProject(defaultPackage)
+                    el.ref.blur()
+                  }
+                }
+              },
               composeEvents(onClick)(_.sample($packageDefault)) --> { defaultPackage =>
-                val group        = groupVar.now()
-                val artifact     = artifactVar.now()
-                val packageName0 = packageVar.now()
-                val packageName  = if (packageName0.isEmpty) defaultPackage else packageName0
-                val selected     = selectedDependencies.now()
-
-                val fileStructure =
-                  FileGenerator.generateFileStructure(
-                    group,
-                    artifact,
-                    packageName,
-                    selected.toList
-                      .flatMap(d => d :: d.included)
-                      .distinct
-                      .sortBy(d => (d.group, d.artifact))
-                  )
-
-                FileGenerator.generateZip(artifact, fileStructure)
+                downloadProject(defaultPackage)
               }
             ),
             HorizontalSeparator(),
@@ -318,6 +316,27 @@ object ZioStartView extends Component {
         pointerEvents <-- searchMode.signal.map(if (_) "auto" else "none")
       )
     )
+
+  private def downloadProject(defaultPackage: String) = {
+    val group        = groupVar.now()
+    val artifact     = artifactVar.now()
+    val packageName0 = packageVar.now()
+    val packageName  = if (packageName0.isEmpty) defaultPackage else packageName0
+    val selected     = selectedDependencies.now()
+
+    val fileStructure =
+      FileGenerator.generateFileStructure(
+        group,
+        artifact,
+        packageName,
+        selected.toList
+          .flatMap(d => d :: d.included)
+          .distinct
+          .sortBy(d => (d.group, d.artifact))
+      )
+
+    FileGenerator.generateZip(artifact, fileStructure)
+  }
 }
 
 final case class Column(content: Mod[HtmlElement]) extends Component {
@@ -405,7 +424,7 @@ final case class SearchField(
               cls("flex relative"),
               input(
                 textTransform.uppercase,
-                focus <-- searchVar.signal.changes,
+                focus <-- searchVar.signal.changes.delay(100),
                 cls("pl-3 font-bold tracking-wider"),
                 background("none"),
                 outline("none"),
@@ -413,6 +432,9 @@ final case class SearchField(
                 onKeyDown --> { e =>
                   if (e.key == "ArrowDown" || e.key == "ArrowUp") {
                     e.preventDefault()
+                  }
+                  if (e.key == "Tab") {
+                    searchVar.set(false)
                   }
                 },
                 controlled(

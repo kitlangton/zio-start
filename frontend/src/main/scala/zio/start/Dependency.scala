@@ -7,7 +7,8 @@ final case class Dependency(
   description: String,
   url: String,
   nameOverride: Option[String] = None,
-  included: List[Dependency] = Nil
+  included: List[Dependency] = Nil,
+  isJava: Boolean = false
 ) {
   def name: String = nameOverride.getOrElse(artifact)
 
@@ -28,7 +29,7 @@ object Dependency {
     Dependency(
       group = "dev.zio",
       artifact = "zio-json",
-      version = "0.3.0",
+      version = "0.3.0-RC9",
       description = "A performant library for JSON Encoding and Decoding.",
       url = "https://github.com/zio/zio-json"
     )
@@ -112,7 +113,8 @@ object Dependency {
           artifact = "postgresql",
           version = "42.4.0",
           description = "PostgreSQL driver for the Java language.",
-          url = ""
+          url = "",
+          isJava = true
         )
       )
     )

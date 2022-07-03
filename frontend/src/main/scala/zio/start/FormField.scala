@@ -8,7 +8,8 @@ final case class FormField(
   valueVar: Var[String],
   default: Signal[String],
   mapping: String => String = identity,
-  autofocused: Boolean = false
+  autofocused: Boolean = false,
+  handleTab: Option[() => Unit] = None
 ) extends Component {
 
   val isFocused = Var(false)
@@ -44,6 +45,13 @@ final case class FormField(
         ),
         onFocus.mapToStrict(true) --> isFocused,
         onBlur.mapToStrict(false) --> isFocused,
+        onKeyDown --> { e =>
+          e.key match {
+            case "Tab" | "\t" =>
+              handleTab.foreach(_())
+            case _ =>
+          }
+        },
         placeholder <-- default
       )
     )

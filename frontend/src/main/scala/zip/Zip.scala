@@ -107,14 +107,42 @@ object Main extends ZIOAppDefault {
            """.trim
     )
 
-    val packagePath =
-      List("core", "src", "main", "scala") ++ packageName.split("\\.").toList
+    val specFile = FileStructure.File(
+      "MainSpec.scala",
+      s"""
+package $packageName
+
+import zio.test._
+import zio._
+
+object MainSpec extends ZIOSpecDefault {
+
+  def spec = 
+    suite("MainSpec")(
+      test("it works!") {
+        val result = 10
+        assertTrue(result == 10)
+      }
+    )
+    
+}
+           """.trim
+    )
+
+    val sourcePath =
+      "scala" :: packageName.split("\\.").toList
 
     FileStructure.Folder(
       artifact,
       List(
-        FileStructure.folderPath("modules", packagePath: _*)(
-          mainFile
+        FileStructure.folderPath("modules", "core")(
+          FileStructure.Folder(
+            "src",
+            List(
+              FileStructure.folderPath("main", sourcePath: _*)(mainFile),
+              FileStructure.folderPath("test", sourcePath: _*)(specFile)
+            )
+          )
         ),
         readmeFile,
         buildSbt,
@@ -129,7 +157,8 @@ object Main extends ZIOAppDefault {
 
   private def generateBuildSbt(group: String, artifact: String, dependencies: List[Dependency]) = {
     val dependenciesString = dependencies.map { dependency =>
-      s""""${dependency.group}" %% "${dependency.artifact}" % "${dependency.version}""""
+      val separator = if (dependency.isJava) "%" else "%%"
+      s""""${dependency.group}" $separator "${dependency.artifact}" % "${dependency.version}""""
     }.mkString(",\n")
 
     FileStructure.File(
@@ -141,16 +170,18 @@ description := "A very special project generated with zio-start. Good luck!"
 version := "0.1.0"
 scalaVersion := "2.13.8"
 
+val zioVersion = "${Dependency.zioVersion}"
+
 lazy val core = 
   project
     .in(file("modules/core"))
     .settings(
       name := "$artifact",
       libraryDependencies ++= Seq(
-        "dev.zio" %% "zio" % "${Dependency.zioVersion}",
-        "dev.zio" %% "zio-streams" % s"${Dependency.zioVersion}",
-        "dev.zio" %% "zio-test" % s"${Dependency.zioVersion}" % Test,
-        "dev.zio" %% "zio-test-sbt" % s"${Dependency.zioVersion}" % Test,
+        "dev.zio" %% "zio" % zioVersion,
+        "dev.zio" %% "zio-streams" % zioVersion,
+        "dev.zio" %% "zio-test" % zioVersion % Test,
+        "dev.zio" %% "zio-test-sbt" % zioVersion % Test,
 ${indent(dependenciesString, 8)}
       ),
       testFrameworks := List(new TestFramework("zio.test.sbt.ZTestFramework"))
