@@ -360,12 +360,15 @@ object ZioStartView extends Component {
       )
     )
 
+  def notBlankOrElse(s: String, default: String): String =
+    if (s.isEmpty) default
+    else s
+
   private def downloadProject(defaultPackage: String) = {
-    val group        = groupVar.now()
-    val artifact     = artifactVar.now()
-    val packageName0 = packageVar.now()
-    val packageName  = if (packageName0.isEmpty) defaultPackage else packageName0
-    val selected     = selectedDependencies.now()
+    val group       = notBlankOrElse(groupVar.now(), "com.kitlangton")
+    val artifact    = notBlankOrElse(artifactVar.now(), "zio-start")
+    val packageName = notBlankOrElse(packageVar.now(), defaultPackage)
+    val selected    = selectedDependencies.now()
 
     val fileStructure =
       FileGenerator.generateFileStructure(

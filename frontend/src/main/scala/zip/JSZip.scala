@@ -4,13 +4,13 @@ import zio.start.Dependency
 
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
-import scala.scalajs.js.annotation.JSImport
+import scala.scalajs.js.annotation.{JSGlobal, JSImport}
 
 @js.native
-@JSImport("jszip", JSImport.Namespace)
-class Zip() extends js.Object {
-  def file(name: String, content: String): Zip           = js.native
-  def folder(name: String): Zip                          = js.native
+@JSGlobal("JSZip")
+class JSZip() extends js.Object {
+  def file(name: String, content: String): JSZip         = js.native
+  def folder(name: String): JSZip                        = js.native
   def generateAsync(options: js.Object): js.Promise[Any] = js.native
 }
 
@@ -54,9 +54,9 @@ object FileStructure {
 object FileGenerator {
 
   def generateZip(name: String, fileStructure: FileStructure): Unit = {
-    val zipFile = new zip.Zip()
+    val zipFile = new zip.JSZip()
 
-    def traverse(zip: Zip, fileStructure: FileStructure): Unit =
+    def traverse(zip: JSZip, fileStructure: FileStructure): Unit =
       fileStructure match {
         case FileStructure.Folder(name, contents) =>
           val folder = zip.folder(name)
