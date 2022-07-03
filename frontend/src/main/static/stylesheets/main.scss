@@ -17,6 +17,11 @@
   background: #19211b;
 }
 
+.subtle-blue:hover {
+  background: #211f19;
+  color: #d1bd7b;
+}
+
 body {
   @apply font-serif;
   @apply bg-gray-900;

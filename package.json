@@ -30,7 +30,9 @@
     "@codemirror/theme-one-dark": "^0.19.1",
     "@tailwindcss/forms": "^0.5.2",
     "@tailwindcss/typography": "^0.5.2",
+    "file-saver": "^2.0.5",
     "highlight.js": "^11.2.0",
+    "jszip": "^3.10.0",
     "sass": "^1.38.2"
   }
 }

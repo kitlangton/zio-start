@@ -1,8 +1,8 @@
-name        := "scala-school"
-description := "A full-stack Scala application powered by ZIO and Laminar."
+name        := "zio-start"
+description := "A wizard for generating new ZIO applications."
 version     := "0.0.1"
 
-val animusVersion    = "0.1.12"
+val animusVersion    = "0.1.15"
 val boopickleVersion = "1.4.0"
 val laminarVersion   = "0.14.0"
 val laminextVersion  = "0.13.6"
@@ -18,8 +18,8 @@ val sharedSettings = Seq(
     "io.suzaku" %%% "boopickle" % boopickleVersion
   ),
   scalacOptions ++= Seq("-Ymacro-annotations", "-Xfatal-warnings", "-deprecation"),
-  scalaVersion := "2.13.8",
-  testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
+  scalaVersion   := "2.13.8",
+  testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
 )
 
 lazy val frontend = project

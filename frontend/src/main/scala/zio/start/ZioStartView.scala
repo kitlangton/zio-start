@@ -1,8 +1,9 @@
 package zio.start
 
 import animus.{SignalOps, SignalSeqOps, Transitions}
-import components.Component
 import com.raquo.laminar.api.L._
+import components.Component
+import zip.FileGenerator
 
 object ZioStartView extends Component {
 
@@ -40,11 +41,14 @@ object ZioStartView extends Component {
 
   val $packageDefault: Signal[String] =
     $groupDefault.combineWithFn($artifactDefault) { (group, artifact) =>
-      s"$group.$artifact"
+      s"$group.${artifact.replace("-", ".")}"
     }
 
   def body =
     div(
+      searchMode.signal --> { m =>
+        if (!m) queryVar.set("")
+      },
       cls("bg-gray-900 text-gray-100 h-screen font-mono"),
       div(
         cls("flex h-screen"),
@@ -159,10 +163,44 @@ object ZioStartView extends Component {
             left("-1px"),
             cls("border-x")
           )
+        },
+        Column {
+          div(
+            SectionHeading("ACTIONS"),
+            div(
+              cls("p-6 font-bold text-gray-400 subtle-blue cursor-pointer"),
+              "GENERATE AND DOWNLOAD",
+              composeEvents(onClick)(_.sample($packageDefault)) --> { defaultPackage =>
+                val group        = groupVar.now()
+                val artifact     = artifactVar.now()
+                val packageName0 = packageVar.now()
+                val packageName  = if (packageName0.isEmpty) defaultPackage else packageName0
+                val selected     = selectedDependencies.now()
+
+                val fileStructure =
+                  FileGenerator.generateFileStructure(
+                    group,
+                    artifact,
+                    packageName,
+                    selected.toList.sortBy(d => (d.group, d.artifact))
+                  )
+
+                FileGenerator.generateZip(artifact, fileStructure)
+              }
+            ),
+            HorizontalSeparator(),
+            div(
+              cls("p-6 font-bold text-gray-400 subtle-blue cursor-pointer"),
+              "PREVIEW GENERATED CODE"
+            ),
+            HorizontalSeparator(),
+            div(
+              cls("p-6 font-bold text-gray-400 subtle-blue cursor-pointer"),
+              "COPY LINK"
+            ),
+            HorizontalSeparator()
+          )
         }
-//        Column {
-//          Section("ACTIONS")
-//        }
       ),
       div(
         zIndex(50),
@@ -313,34 +351,37 @@ final case class DependencyView(
         cls.toggle("subtle-red") <-- $isHoveredAndNotSearching,
         cls.toggle("subtle-green") <-- $isHoveredAndSearching,
         div(
-          cls("flex items-center"),
+          cls("flex"),
           div(
-            opacity <-- $isHovered.map(if (_) 0.0 else 1.0).spring,
+            cls("flex items-center w-6"),
             div(
-              cls("flex items-center"),
-              opacity(0.7),
-              Icons.cylinder,
-              div(cls("w-2"), nbsp)
+              opacity <-- $isHovered.map(if (_) 1.0 else 0.0).spring,
+              div(
+                cls("flex items-center"),
+                Icons.add,
+                div(cls("w-2"), nbsp)
+              ),
+              Transitions.width($isHoveredAndSearching)
             ),
-            Transitions.width($isHovered.map(!_))
-          ),
-          div(
-            opacity <-- $isHovered.map(if (_) 1.0 else 0.0).spring,
             div(
-              cls("flex items-center"),
-              Icons.remove,
-              div(cls("w-2"), nbsp)
+              opacity <-- $isHovered.map(if (_) 0.0 else 1.0).spring,
+              div(
+                cls("flex items-center"),
+                opacity(0.7),
+                Icons.cylinder,
+                div(cls("w-2"), nbsp)
+              ),
+              Transitions.width($isHovered.map(!_))
             ),
-            Transitions.width($isHoveredAndNotSearching)
-          ),
-          div(
-            opacity <-- $isHovered.map(if (_) 1.0 else 0.0).spring,
             div(
-              cls("flex items-center"),
-              Icons.add,
-              div(cls("w-2"), nbsp)
-            ),
-            Transitions.width($isHoveredAndSearching)
+              opacity <-- $isHovered.map(if (_) 1.0 else 0.0).spring,
+              div(
+                cls("flex items-center"),
+                Icons.remove,
+                div(cls("w-2"), nbsp)
+              ),
+              Transitions.width($isHoveredAndNotSearching)
+            )
           ),
           div(
             cls("font-bold text-gray-300 tracking-wider"),
