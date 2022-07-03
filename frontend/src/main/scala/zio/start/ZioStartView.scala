@@ -51,6 +51,48 @@ object ZioStartView extends Component {
 
   def body =
     div(
+      div(
+        cls("sm:hidden bg-gray-900 h-screen"),
+        cls("grid grid-rows-5"),
+        div(
+          cls("flex items-center justify-center h-full row-span-3 shadow-md"),
+          ZioStartTitle
+        ),
+        div(
+          cls("text-slate-500 text-center font-mono px-12 font-bold flex items-center justify-center h-full"),
+          cls("flex-col border-gray-800 stroke-slate-600 border-t shadow-md"),
+          Icons.desktop,
+          div(
+            div("TRY AGAIN ON"),
+            div("A LARGER DEVICE"),
+            cls("mt-2")
+          )
+        ),
+        div(
+          cls("flex items-center justify-center border-gray-800 border-t shadow-lg"),
+          a(
+            cls("opacity-75 hover:opacity-100"),
+            Icons.github,
+            href("https://github.com/kitlangton/zio-start"),
+            target("_blank")
+          ),
+          div(cls("w-8")),
+          a(
+            cls("opacity-75 hover:opacity-100"),
+            Icons.twitter,
+            href("https://twitter.com/kitlangton"),
+            target("_blank")
+          )
+        )
+      ),
+      div(
+        cls("hidden sm:block"),
+        view
+      )
+    )
+
+  def view =
+    div(
       $dependencies.changes.mapToStrict(0) --> searchIndex,
       windowEvents.onKeyDown.withCurrentValueOf($dependencies) --> { value =>
         val (e, deps)   = value
@@ -92,22 +134,7 @@ object ZioStartView extends Component {
         div(
           cls("flex flex-col justify-between items-center"),
           cls("border-r border-gray-800 h-full"),
-          div(
-            div(
-              cls("px-6 py-6"),
-              div(
-                cls(
-                  "whitespace-nowrap font-mono text-xl font-bold border border-red-900 text-red-600 p-2 px-3 rounded"
-                ),
-                s"ZIO✦START".toList.map { char =>
-                  if (char == '✦')
-                    div(cls("text-red-900"), char.toString)
-                  else
-                    div(char.toString)
-                }
-              )
-            )
-          ),
+          ZioStartTitle,
           div(
             cls("flex flex-col justify-between items-center py-8"),
             a(
@@ -314,6 +341,22 @@ object ZioStartView extends Component {
         opacity <-- searchMode.signal.map(if (_) 0.5 else 0.0).spring,
         onClick --> { _ => searchMode.set(false) },
         pointerEvents <-- searchMode.signal.map(if (_) "auto" else "none")
+      )
+    )
+
+  private def ZioStartTitle =
+    div(
+      cls("px-6 py-6"),
+      div(
+        cls(
+          "whitespace-nowrap font-mono text-xl font-bold border border-red-900 text-red-600 p-2 px-3 rounded"
+        ),
+        s"ZIO✦START".toList.map { char =>
+          if (char == '✦')
+            div(cls("text-red-900"), char.toString)
+          else
+            div(char.toString)
+        }
       )
     )
 

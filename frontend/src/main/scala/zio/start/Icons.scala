@@ -114,4 +114,15 @@ object Icons {
       """
       }
     )
+
+  def desktop =
+    div(
+      onMountCallback { el =>
+        el.thisNode.ref.innerHTML = """
+<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" fill="none">
+<path d="M7.75 15L7 18L6 19H14L13 18L12.25 15M1 11H19M3 15H17C17.5304 15 18.0391 14.7893 18.4142 14.4142C18.7893 14.0391 19 13.5304 19 13V3C19 2.46957 18.7893 1.96086 18.4142 1.58579C18.0391 1.21071 17.5304 1 17 1H3C2.46957 1 1.96086 1.21071 1.58579 1.58579C1.21071 1.96086 1 2.46957 1 3V13C1 13.5304 1.21071 14.0391 1.58579 14.4142C1.96086 14.7893 2.46957 15 3 15Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+      """
+      }
+    )
 }
