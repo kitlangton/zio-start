@@ -2,7 +2,7 @@ name        := "scala-school"
 description := "A full-stack Scala application powered by ZIO and Laminar."
 version     := "0.0.1"
 
-val animusVersion    = "0.1.15"
+val animusVersion    = "0.1.12"
 val boopickleVersion = "1.4.0"
 val laminarVersion   = "0.14.0"
 val laminextVersion  = "0.13.6"

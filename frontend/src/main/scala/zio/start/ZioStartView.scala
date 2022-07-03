@@ -1,6 +1,6 @@
 package zio.start
 
-import animus.{SignalOps, Transitions}
+import animus.{SignalOps, SignalSeqOps, Transitions}
 import components.Component
 import com.raquo.laminar.api.L._
 
@@ -10,6 +10,21 @@ object ZioStartView extends Component {
   val artifactVar = Var("")
   val packageVar  = Var("")
   val queryVar    = Var("")
+
+  val searchMode = Var(false)
+
+  val selectedDependencies =
+    Var(Set.empty[Dependency])
+
+  val $dependencies =
+    searchMode.signal.combineWithFn(selectedDependencies.signal, queryVar.signal) { (isSearch, deps, query) =>
+      if (isSearch)
+        Dependency.all
+          .filter(_.artifact.toLowerCase.contains(query.toLowerCase))
+          .filterNot(deps.contains)
+      else
+        Dependency.all.filter(deps.contains)
+    }
 
   val $groupDefault =
     groupVar.signal.map { str =>
@@ -106,18 +121,57 @@ object ZioStartView extends Component {
           )
         },
         Column {
-          div(
-            SectionHeading("DEPENDENCIES"),
-            SearchField(queryVar),
-            HorizontalSeparator(),
-            DependencyView("zio-json", "A performant library for JSON Encoding and Decoding."),
-            DependencyView("zio-http", "A supercharged, ergonomic library for building HTTP servers."),
-            DependencyView("zio-kafka", "A Kafka client for ZIO.")
+          List(
+            zIndex(100),
+            position.relative,
+            cls("bg-gray-900"),
+            div(
+              SectionHeading("DEPENDENCIES"),
+              Transitions.height(searchMode.signal.map(!_))
+            ),
+            SearchField(queryVar, searchMode).body,
+            HorizontalSeparator().body.amend(
+              position.absolute
+//              top("1px")
+//              Transitions.opacity(searchMode.signal.map(!_))
+            ),
+            children <-- $dependencies.splitTransition(identity) { (_, dep, _, t) =>
+              div(
+                DependencyView(
+                  dep,
+                  searchMode.signal,
+                  isSearching =>
+                    if (isSearching) {
+                      selectedDependencies.update(_ + dep)
+                      searchMode.set(false)
+                    } else {
+                      selectedDependencies.update(_ - dep)
+                    }
+                ),
+                t.height,
+                t.opacity
+              )
+            },
+            HorizontalSeparator().body.amend(
+              Transitions.opacity($dependencies.signal.map(_.nonEmpty))
+            ),
+//            Dependency.all.map(DependencyView(_).body): Mod[HtmlElement],
+            left("-1px"),
+            cls("border-x")
           )
         }
 //        Column {
 //          Section("ACTIONS")
 //        }
+      ),
+      div(
+        zIndex(50),
+        position.absolute,
+        cls("w-screen h-screen inset-0"),
+        background("#14110E"),
+        opacity <-- searchMode.signal.map(if (_) 0.5 else 0.0).spring,
+        onClick --> { _ => searchMode.set(false) },
+        pointerEvents <-- searchMode.signal.map(if (_) "auto" else "none")
       )
     )
 }
@@ -126,6 +180,7 @@ final case class Column(content: Mod[HtmlElement]) extends Component {
   def body =
     div(
       cls("border-r border-gray-800 h-full"),
+      position.relative,
       width("420px"),
       content
     )
@@ -151,75 +206,151 @@ final case class HorizontalSeparator() extends Component {
 }
 
 final case class SearchField(
-  queryVar: Var[String]
+  queryVar: Var[String],
+  searchVar: Var[Boolean]
 ) extends Component {
+  val $notSearching = searchVar.signal.map(!_)
+
   def body =
     div(
+      windowEvents.onKeyDown --> { key =>
+        key.key match {
+          case "d" if key.ctrlKey =>
+            searchVar.update(!_)
+          case _ =>
+
+        }
+      },
+      onClick --> { _ =>
+        searchVar.update(!_)
+      },
       cls("p-4 flex items-center justify-between"),
       cls("hover:bg-gray-800 cursor-pointer"),
       div(
-        cls("flex items-center"),
-        Icons.plus,
+        cls("flex items-center w-full"),
         div(
-          cls("pl-3 font-bold text-gray-400 tracking-wider"),
-          "ADD DEPENDENCY"
-        )
-      ),
-      div(
-        "CTRL-D",
-        cls(
-          "text-gray-400 text-xs tracking-wider ml-3 self-end",
-          "p-1 px-2 bg-gray-800 rounded"
+          div(
+            Icons.plus,
+            Transitions.height($notSearching),
+            Transitions.opacity($notSearching)
+          ),
+          div(
+            Icons.magnifier,
+            Transitions.height(searchVar.signal),
+            Transitions.opacity(searchVar.signal)
+          )
+        ),
+        div(
+          cls("w-full"),
+          div(
+            div(
+              cls("flex justify-between items-center"),
+              div(
+                cls("pl-3 font-bold text-gray-400 tracking-wider whitespace-nowrap w-full"),
+                div("ADD DEPENDENCY")
+              ),
+              div(
+                "CTRL-D",
+                cls(
+                  "text-gray-400 text-xs tracking-wider ml-3 self-end whitespace-nowrap",
+                  "p-1 px-2 bg-gray-800 rounded"
+                )
+              )
+            ),
+            Transitions.height($notSearching),
+            Transitions.opacity($notSearching)
+//            hidden <-- searchVar
+          ),
+          div(
+            input(
+              textTransform.uppercase,
+              focus <-- searchVar.signal.changes,
+              cls("pl-3 font-bold tracking-wider"),
+              background("none"),
+              outline("none"),
+              placeholder("SEARCH"),
+              controlled(
+                value <-- queryVar,
+                onInput.mapToValue --> queryVar
+              )
+            ),
+            hidden <-- $notSearching,
+            Transitions.height(searchVar.signal),
+            Transitions.opacity(searchVar.signal)
+          )
         )
       )
     )
 }
 
 final case class DependencyView(
-  name: String,
-  description: String
+  dependency: Dependency,
+  isSearching: Signal[Boolean],
+  handleClick: (Boolean) => Unit
 ) extends Component {
 
   val isHovered = Var(false)
 
+  val $isHovered =
+    EventStream
+      .merge(
+        isSearching.changes.mapTo(false),
+        isHovered.signal.changes
+      )
+      .startWith(false)
+
+  val $isHoveredAndSearching    = $isHovered.combineWithFn(isSearching)(_ && _)
+  val $isHoveredAndNotSearching = $isHovered.combineWithFn(isSearching)(_ && !_)
+
   def body =
     div(
+      HorizontalSeparator(),
       onMouseEnter.mapToStrict(true) --> isHovered,
       onMouseLeave.mapToStrict(false) --> isHovered,
+      composeEvents(onClick)(_.sample(isSearching)) --> { bool => handleClick(bool) },
       div(
         cls("p-4 cursor-pointer"),
-        cls.toggle("subtle-red") <-- isHovered,
+        cls.toggle("subtle-red") <-- $isHoveredAndNotSearching,
+        cls.toggle("subtle-green") <-- $isHoveredAndSearching,
         div(
           cls("flex items-center"),
           div(
-            opacity <-- isHovered.signal.map(if (_) 0.0 else 1.0).spring,
+            opacity <-- $isHovered.map(if (_) 0.0 else 1.0).spring,
             div(
               cls("flex items-center"),
               opacity(0.7),
               Icons.cylinder,
               div(cls("w-2"), nbsp)
             ),
-            Transitions.width(isHovered.signal.map(!_))
+            Transitions.width($isHovered.map(!_))
           ),
           div(
-            opacity <-- isHovered.signal.map(if (_) 1.0 else 0.0).spring,
+            opacity <-- $isHovered.map(if (_) 1.0 else 0.0).spring,
             div(
               cls("flex items-center"),
               Icons.remove,
               div(cls("w-2"), nbsp)
             ),
-            Transitions.width(isHovered.signal)
+            Transitions.width($isHoveredAndNotSearching)
+          ),
+          div(
+            opacity <-- $isHovered.map(if (_) 1.0 else 0.0).spring,
+            div(
+              cls("flex items-center"),
+              Icons.add,
+              div(cls("w-2"), nbsp)
+            ),
+            Transitions.width($isHoveredAndSearching)
           ),
           div(
             cls("font-bold text-gray-300 tracking-wider"),
-            name.toUpperCase
+            dependency.artifact.toUpperCase
           )
         ),
         div(
           cls("text-gray-400 mt-2"),
-          description
+          dependency.description
         )
-      ),
-      HorizontalSeparator()
+      )
     )
 }

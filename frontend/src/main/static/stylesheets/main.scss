@@ -3,14 +3,18 @@
 
 @import 'highlight.js/styles/atom-one-dark.css';
 
-@import 'tailwindcss/base.css';
-@import 'tailwindcss/components.css';
-@import 'tailwindcss/utilities.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 //@import 'codemirror/lib/codemirror.css';
 //@import 'codemirror/theme/material-darker.css';
 
 .subtle-red {
   background: #211A19;
+}
+
+.subtle-green {
+  background: #19211b;
 }
 
 body {
