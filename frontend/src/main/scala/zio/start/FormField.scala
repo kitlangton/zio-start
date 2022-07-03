@@ -47,7 +47,7 @@ final case class FormField(
         onBlur.mapToStrict(false) --> isFocused,
         onKeyDown --> { e =>
           e.key match {
-            case "Tab" | "\t" =>
+            case "Tab" if !e.shiftKey =>
               handleTab.foreach(_())
             case _ =>
           }
