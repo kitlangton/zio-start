@@ -11,20 +11,29 @@ object ZioStartView extends Component {
   val artifactVar = Var("")
   val packageVar  = Var("")
   val queryVar    = Var("")
+  val searchIndex = Var(0)
 
   val searchMode = Var(false)
 
   val selectedDependencies =
     Var(Set.empty[Dependency])
 
-  val $dependencies =
+  val $dependencies: Signal[List[Dependency]] =
     searchMode.signal.combineWithFn(selectedDependencies.signal, queryVar.signal) { (isSearch, deps, query) =>
       if (isSearch)
         Dependency.all
           .filter(_.artifact.toLowerCase.contains(query.toLowerCase))
-          .filterNot(deps.contains)
+//          .filterNot(deps.contains)
       else
         Dependency.all.filter(deps.contains)
+    }
+
+  val $searchIndex: Signal[Int] =
+    searchIndex.signal.combineWithFn($dependencies) { (index, deps) =>
+      val numDeps = deps.size
+      if (index < 0) 0
+      else if (index >= numDeps) numDeps - 1
+      else index
     }
 
   val $groupDefault =
@@ -131,23 +140,25 @@ object ZioStartView extends Component {
             cls("bg-gray-900"),
             div(
               SectionHeading("DEPENDENCIES"),
-              Transitions.height(searchMode.signal.map(!_))
+              height("37px"),
+              Transitions.height(searchMode.signal.map(!_)),
+              Transitions.opacity(searchMode.signal.map(!_))
             ),
             SearchField(queryVar, searchMode).body,
-            HorizontalSeparator().body.amend(
-              position.absolute
-//              top("1px")
-//              Transitions.opacity(searchMode.signal.map(!_))
-            ),
+            HorizontalSeparator().body.amend(position.absolute),
             children <-- $dependencies.splitTransition(identity) { (_, dep, _, t) =>
               div(
                 DependencyView(
                   dep,
                   searchMode.signal,
+                  selectedDependencies.signal.map(_.contains(dep)),
                   isSearching =>
                     if (isSearching) {
-                      selectedDependencies.update(_ + dep)
-                      searchMode.set(false)
+                      selectedDependencies.update { deps =>
+                        if (deps.contains(dep)) deps - dep
+                        else deps + dep
+                      }
+                      //                      searchMode.set(false)
                     } else {
                       selectedDependencies.update(_ - dep)
                     }
@@ -159,7 +170,6 @@ object ZioStartView extends Component {
             HorizontalSeparator().body.amend(
               Transitions.opacity($dependencies.signal.map(_.nonEmpty))
             ),
-//            Dependency.all.map(DependencyView(_).body): Mod[HtmlElement],
             left("-1px"),
             cls("border-x")
           )
@@ -260,7 +270,7 @@ final case class SearchField(
         }
       },
       onClick --> { _ =>
-        searchVar.update(!_)
+        searchVar.set(true)
       },
       cls("p-4 flex items-center justify-between"),
       cls("hover:bg-gray-800 cursor-pointer"),
@@ -268,6 +278,7 @@ final case class SearchField(
         cls("flex items-center w-full"),
         div(
           div(
+            cls("fill-gray-500"),
             Icons.plus,
             Transitions.height($notSearching),
             Transitions.opacity($notSearching)
@@ -324,6 +335,7 @@ final case class SearchField(
 final case class DependencyView(
   dependency: Dependency,
   isSearching: Signal[Boolean],
+  isSelected: Signal[Boolean],
   handleClick: (Boolean) => Unit
 ) extends Component {
 
@@ -340,6 +352,19 @@ final case class DependencyView(
   val $isHoveredAndSearching    = $isHovered.combineWithFn(isSearching)(_ && _)
   val $isHoveredAndNotSearching = $isHovered.combineWithFn(isSearching)(_ && !_)
 
+  val $showCheckmark =
+    isSelected.combineWithFn(isSearching)(_ && _)
+
+  val $showAdd =
+    isSelected.combineWithFn(isSearching, isHovered) { (selected, searching, hovered) =>
+      !selected && searching && hovered
+    }
+
+  val $showCylinderIcon =
+    isSelected.combineWithFn(isSearching, $isHovered) { (selected, searching, hovered) =>
+      (!searching && !hovered) || (searching && !selected && !hovered)
+    }
+
   def body =
     div(
       HorizontalSeparator(),
@@ -351,41 +376,65 @@ final case class DependencyView(
         cls.toggle("subtle-red") <-- $isHoveredAndNotSearching,
         cls.toggle("subtle-green") <-- $isHoveredAndSearching,
         div(
-          cls("flex"),
+          cls("flex items-center"),
           div(
-            cls("flex items-center w-6"),
+            cls("w-full"),
             div(
-              opacity <-- $isHovered.map(if (_) 1.0 else 0.0).spring,
-              div(
-                cls("flex items-center"),
-                Icons.add,
-                div(cls("w-2"), nbsp)
-              ),
-              Transitions.width($isHoveredAndSearching)
+              cls("flex items-center font-medium text-sm text-green-600 mr-2"),
+              s"ADDED${nbsp}"
             ),
-            div(
-              opacity <-- $isHovered.map(if (_) 0.0 else 1.0).spring,
-              div(
-                cls("flex items-center"),
-                opacity(0.7),
-                Icons.cylinder,
-                div(cls("w-2"), nbsp)
-              ),
-              Transitions.width($isHovered.map(!_))
-            ),
-            div(
-              opacity <-- $isHovered.map(if (_) 1.0 else 0.0).spring,
-              div(
-                cls("flex items-center"),
-                Icons.remove,
-                div(cls("w-2"), nbsp)
-              ),
-              Transitions.width($isHoveredAndNotSearching)
-            )
+            Transitions.width($showCheckmark),
+            Transitions.opacity($showCheckmark)
           ),
           div(
-            cls("font-bold text-gray-300 tracking-wider"),
-            dependency.artifact.toUpperCase
+            div(
+              cls("flex items-center w-6"),
+              div(
+                div(
+                  cls("flex items-center fill-green-600"),
+                  Icons.add,
+                  div(cls("w-2"), nbsp)
+                ),
+                Transitions.width($showAdd),
+                Transitions.opacity($showAdd)
+              ),
+              div(
+                div(
+                  cls("flex items-center"),
+                  opacity(0.7),
+                  Icons.cylinder,
+                  div(cls("w-2"), nbsp)
+                ),
+                Transitions.width($showCylinderIcon),
+                Transitions.opacity($showCylinderIcon)
+              ),
+              div(
+                opacity <-- $isHovered.map(if (_) 1.0 else 0.0).spring,
+                div(
+                  cls("flex items-center"),
+                  Icons.remove,
+                  div(cls("w-2"), nbsp)
+                ),
+                Transitions.width($isHoveredAndNotSearching)
+              )
+            ),
+            Transitions.width($showCheckmark.map(!_))
+          ),
+          div(
+            cls("flex justify-between items-center w-full"),
+            div(
+              cls("font-bold text-gray-300 tracking-wider"),
+              dependency.artifact.toUpperCase
+            ),
+            a(
+              cls("stroke-gray-700 hover:stroke-blue-500"),
+              width("20px"),
+              onMouseEnter.mapToStrict(false) --> isHovered,
+              onMouseLeave.mapToStrict(true) --> isHovered,
+              Icons.externalLink,
+              href(dependency.url),
+              target("_blank")
+            )
           )
         ),
         div(

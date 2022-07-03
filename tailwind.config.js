@@ -11,7 +11,6 @@ module.exports = {
         "./index.html"
     ],
     theme: {
-
         extend: {
             fontFamily: {
                 serif: ['Inter', 'ui-serif', 'Georgia', 'Cambria', '"Times New Roman"', 'Times', 'serif'],
