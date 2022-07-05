@@ -40,7 +40,7 @@ object Dependency {
       artifact = "zhttp",
       version = "2.0.0-RC9",
       description = "A supercharged, ergonomic library for building HTTP servers.",
-      url = "https://github.com/dream11/zhttp",
+      url = "https://github.com/dream11/zio-http",
       nameOverride = Some("zio-http")
     )
 
@@ -130,7 +130,7 @@ object Dependency {
 
   val all: List[Dependency] =
     List(
-      zioHttp,
+//      zioHttp,
       zioJson,
       zioLogging,
       zioProcess,
