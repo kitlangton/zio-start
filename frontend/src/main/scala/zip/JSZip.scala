@@ -81,6 +81,7 @@ object FileGenerator {
   }
 
   def generateFileStructure(
+    scalaVersion: String,
     group: String,
     artifact: String,
     packageName: String,
@@ -88,7 +89,8 @@ object FileGenerator {
     dependencies: List[Dependency]
   ): FileStructure = {
 
-    val buildSbt = generateBuildSbt(group, artifact, description, dependencies)
+    val buildSbt = generateBuildSbt(scalaVersion, group, artifact, dependencies)
+    val scalafmtFile = generateScalafmtFile(scalaVersion)
 
     val readmeFile =
       FileStructure.File(
@@ -164,7 +166,7 @@ object MainSpec extends ZIOSpecDefault {
   def indent(string: String, indent: Int): String =
     string.split("\n").map((" " * indent) + _).mkString("\n")
 
-  private def generateBuildSbt(group: String, artifact: String, description: String, dependencies: List[Dependency]) = {
+  private def generateBuildSbt(scalaVersion: String, group: String, artifact: String, dependencies: List[Dependency]) = {
     val dependenciesString = dependencies.map { dependency =>
       val separator = if (dependency.isJava) "%" else "%%"
       s""""${dependency.group}" $separator "${dependency.artifact}" % "${dependency.version}""""
@@ -177,7 +179,7 @@ organization := "$group"
 name := "$artifact"
 description := "$description"
 version := "0.1.0"
-ThisBuild/scalaVersion := "2.13.8"
+ThisBuild/scalaVersion := "$scalaVersion"
 
 val zioVersion = "${Dependency.zioVersion}"
 
@@ -199,17 +201,25 @@ ${indent(dependenciesString, 8)}
     )
   }
 
-  lazy val scalafmtFile =
+  def generateScalafmtFile(scalaVersion: String) = {
+    val dialect = scalaVersion.split('.') match {
+      case Array("3", _, _) => "scala3"
+      case Array("2", "13", _) => "scala213"
+      case Array("2", "12", _) => "scala212"
+      case _ => ???
+    }
+
     FileStructure.File(
       ".scalafmt.conf",
-      """
+      s"""
 version = 3.0.6
 maxColumn = 120
 docstrings.wrapMaxColumn = 80
 align.preset = most
 align.multiline = false
-runner.dialect = scala213
+runner.dialect = $dialect
 rewrite.rules = [RedundantBraces, RedundantParens]
        """.trim
     )
+  }
 }

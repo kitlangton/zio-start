@@ -2,7 +2,7 @@ package zio.start
 
 import animus.{SignalOps, SignalSeqOps, Transitions}
 import com.raquo.laminar.api.L._
-import components.{CodeBlock, Component}
+import components.{CodeBlock, Component, ItemPicker}
 import zip.{FileGenerator, FileStructure}
 
 final case class Rendered(
@@ -149,12 +149,14 @@ final case class FilePreview(fileStructure: FileStructure) extends Component {
 
 object ZioStartView extends Component {
 
-  val groupVar       = Var("")
-  val artifactVar    = Var("")
-  val packageVar     = Var("")
-  val descriptionVar = Var("")
-  val queryVar       = Var("")
-  val searchIndex    = Var(0)
+  val groupVar        = Var("")
+  val artifactVar     = Var("")
+  val packageVar      = Var("")
+  val queryVar        = Var("")
+  val scalaVersionVar = Var("")
+  val searchIndex     = Var(0)
+
+  val scalaVersionOptions = List("3.1.3", "2.13.8", "2.12.16")
 
   val searchMode     = Var(false)
   val generatedFile  = Var(Option.empty[FileStructure])
@@ -319,6 +321,11 @@ object ZioStartView extends Component {
               HorizontalSeparator()
             ),
             SectionHeading("PROJECT INFO"),
+            ItemPicker(
+              "scala version",
+              scalaVersionVar,
+              scalaVersionOptions
+            ),
             FormField( //
               "group",
               groupVar,
@@ -554,13 +561,14 @@ object ZioStartView extends Component {
     else s
 
   private def generateFileStructure(defaultPackage: String) = {
-    val group       = notBlankOrElse(groupVar.now(), "com.kitlangton")
-    val artifact    = notBlankOrElse(artifactVar.now(), "zio-start")
-    val packageName = notBlankOrElse(packageVar.now(), defaultPackage)
-    val description = notBlankOrElse(descriptionVar.now(), "An incredible project.")
-    val selected    = selectedDependencies.now()
+    val scalaVersion = notBlankOrElse(scalaVersionVar.now(), scalaVersionOptions.head)
+    val group        = notBlankOrElse(groupVar.now(), "com.kitlangton")
+    val artifact     = notBlankOrElse(artifactVar.now(), "zio-start")
+    val packageName  = notBlankOrElse(packageVar.now(), defaultPackage)
+    val selected     = selectedDependencies.now()
 
     FileGenerator.generateFileStructure(
+      scalaVersion,
       group,
       artifact,
       packageName,
