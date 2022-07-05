@@ -2,9 +2,150 @@ package zio.start
 
 import animus.{SignalOps, SignalSeqOps, Transitions}
 import com.raquo.laminar.api.L._
-import components.Component
-import org.scalajs.dom.window.alert
-import zip.FileGenerator
+import components.{CodeBlock, Component}
+import zip.{FileGenerator, FileStructure}
+
+final case class Rendered(
+  isFolder: Boolean,
+  indent: Int,
+  name: String,
+  contents: String,
+  fileStructure: FileStructure
+)
+
+final case class FilePreview(fileStructure: FileStructure) extends Component {
+
+  def allFiles(fileStructure: FileStructure): List[FileStructure.Folder] =
+    fileStructure match {
+      case folder @ FileStructure.Folder(name, contents) =>
+        folder :: contents.collect { case folder: FileStructure.Folder => allFiles(folder) }.flatten
+      case FileStructure.File(name, contents) => Nil
+    }
+
+  val openedVar: Var[Set[FileStructure]] = Var(allFiles(fileStructure).toSet)
+  val selectedFileVar: Var[FileStructure.File] =
+    Var(
+      fileStructure match {
+        case FileStructure.Folder(name, contents) =>
+          contents.collectFirst { case file @ FileStructure.File(name, _) => file }.get
+        case file @ FileStructure.File(name, contents) => file
+      }
+    )
+
+  def renderFile(fileStructure: FileStructure, indent: Int, opened: Set[FileStructure]): List[Rendered] =
+    fileStructure match {
+      case FileStructure.Folder(name, contents) =>
+        val isOpened = opened.contains(fileStructure)
+        val children =
+          if (isOpened) contents.flatMap(renderFile(_, indent + 1, opened))
+          else Nil
+        Rendered(
+          isFolder = true,
+          indent = indent,
+          name = name,
+          contents = "",
+          fileStructure = fileStructure
+        ) +: children
+      case FileStructure.File(name, contents) =>
+        Rendered(
+          isFolder = false,
+          indent = indent,
+          name = name,
+          contents = contents,
+          fileStructure = fileStructure
+        ) :: Nil
+    }
+
+  val $rendered = openedVar.signal.map { opened =>
+    renderFile(fileStructure, 0, opened)
+  }
+
+  def body =
+    div(
+      cls("grid grid-cols-3 h-full"),
+      Column {
+        div(
+          SectionHeading(
+            "Generated"
+          ).amend(position("sticky"), zIndex(999), top("0"), cls("bg-gray-900 shadow")),
+          children <-- $rendered.splitTransition(_.fileStructure) { (_, r, rendered, t) =>
+            val view =
+              if (r.isFolder)
+                div(
+                  cls("flex items-center fill-gray-500"),
+                  div(
+                    cls("fill-gray-600 transitions-rotate duration-200"),
+                    cls.toggle("rotate-90") <-- openedVar.signal.map(_.contains(r.fileStructure)),
+                    Icons.chevronRight
+                  ),
+                  Icons.folder,
+                  div(
+                    cls("ml-2"),
+                    s"${r.name}"
+                  )
+                )
+              else
+                div(
+                  cls("flex items-center fill-gray-500 pl-5"),
+                  Icons.document,
+                  div(
+                    cls("ml-2"),
+                    s"${r.name}"
+                  )
+                )
+
+            div(
+              div(
+                cls("border-b border-gray-800 p-2 hover:bg-gray-800 cursor-pointer"),
+                cls("select-none"),
+                cls.toggle("bg-red-900 hover:bg-red-800") <-- selectedFileVar.signal.map(_ == r.fileStructure),
+                div(
+                  paddingLeft(s"${r.indent * 8}px"),
+                  view
+                ),
+                onClick --> { _ =>
+                  r.fileStructure match {
+                    case folder: FileStructure.Folder =>
+                      openedVar.update { opened =>
+                        if (opened.contains(folder)) opened - folder
+                        else opened + folder
+                      }
+                    case file: FileStructure.File =>
+                      selectedFileVar.set(file)
+                  }
+                }
+              ),
+              t.height,
+              position.relative,
+              zIndex(100 - r.indent),
+              top <-- t.$isActive.map {
+                case true  => 0.0
+                case false => -40.0
+              }.spring.px,
+              t.opacity
+            )
+          }
+        )
+      }.amend(width("100%"), overflowY.scroll),
+      Column {
+        child <-- selectedFileVar.signal.map { file =>
+          div(
+            SectionHeading(file.name),
+            CodeBlock(file.contents, lang = file.language)
+          )
+        }
+      }.amend(width("100%"), cls("col-span-2"))
+    )
+
+//  def renderFile(fileStructure: FileStructure) =
+//    fileStructure match {
+//      case FileStructure.Folder(name, contents) =>
+//        div(name)
+//      case FileStructure.File(name, contents) =>
+//        div(name)
+//
+//    }
+}
 
 object ZioStartView extends Component {
 
@@ -14,7 +155,9 @@ object ZioStartView extends Component {
   val queryVar    = Var("")
   val searchIndex = Var(0)
 
-  val searchMode = Var(false)
+  val searchMode     = Var(false)
+  val generatedFile  = Var(Option.empty[FileStructure])
+  val $showGenerated = generatedFile.signal.map(_.isDefined)
 
   val selectedDependencies =
     Var(Set.empty[Dependency])
@@ -313,12 +456,20 @@ object ZioStartView extends Component {
             ),
             HorizontalSeparator(),
             div(
-              cls("p-6 font-bold text-gray-600 hover:bg-gray-800"),
-              "PREVIEW GENERATED CODE",
+              cls("p-6 font-bold text-gray-400 subtle-blue cursor-pointer"),
+              cls("fill-gray-500 hover:fill-orange-400"),
               div(
-                "COMING SOON",
-                cls("text-xs text-gray-700")
-              )
+                cls("flex items-center"),
+                Icons.eye,
+                div(
+                  cls("pl-3"),
+                  "PREVIEW GENERATED CODE"
+                )
+              ),
+              composeEvents(onClick)(_.sample($packageDefault)) --> { defaultPackage =>
+                val fs = generateFileStructure(defaultPackage)
+                generatedFile.set(Some(fs))
+              }
             ),
             HorizontalSeparator(),
             div(
@@ -341,6 +492,32 @@ object ZioStartView extends Component {
         opacity <-- searchMode.signal.map(if (_) 0.5 else 0.0).spring,
         onClick --> { _ => searchMode.set(false) },
         pointerEvents <-- searchMode.signal.map(if (_) "auto" else "none")
+      ),
+      div(
+        zIndex(160),
+        position.absolute,
+        cls("inset-16 bg-gray-900 border border-gray-800 shadow-lg rounded"),
+        child <-- generatedFile.signal.changes.collect { case Some(f) => f }.map { gen =>
+          FilePreview(
+            gen
+          )
+        },
+        opacity <-- $showGenerated.map(if (_) 1.0 else 0.0).spring,
+        pointerEvents <-- $showGenerated.map(if (_) "auto" else "none"),
+        windowEvents.onKeyDown --> { e =>
+          if (e.key == "Escape") {
+            generatedFile.set(None)
+          }
+        }
+      ),
+      div(
+        zIndex(150),
+        position.absolute,
+        cls("w-screen h-screen inset-0"),
+        background("#14110E"),
+        onClick --> { _ => generatedFile.set(None) },
+        opacity <-- $showGenerated.map(if (_) 0.6 else 0.0).spring,
+        pointerEvents <-- $showGenerated.map(if (_) "auto" else "none")
       )
     )
 
@@ -364,22 +541,26 @@ object ZioStartView extends Component {
     if (s.isEmpty) default
     else s
 
-  private def downloadProject(defaultPackage: String) = {
+  private def generateFileStructure(defaultPackage: String) = {
     val group       = notBlankOrElse(groupVar.now(), "com.kitlangton")
     val artifact    = notBlankOrElse(artifactVar.now(), "zio-start")
     val packageName = notBlankOrElse(packageVar.now(), defaultPackage)
     val selected    = selectedDependencies.now()
 
-    val fileStructure =
-      FileGenerator.generateFileStructure(
-        group,
-        artifact,
-        packageName,
-        selected.toList
-          .flatMap(d => d :: d.included)
-          .distinct
-          .sortBy(d => (d.group, d.artifact))
-      )
+    FileGenerator.generateFileStructure(
+      group,
+      artifact,
+      packageName,
+      selected.toList
+        .flatMap(d => d :: d.included)
+        .distinct
+        .sortBy(d => (d.group, d.artifact))
+    )
+  }
+
+  private def downloadProject(defaultPackage: String) = {
+    val artifact      = notBlankOrElse(artifactVar.now(), "zio-start")
+    val fileStructure = generateFileStructure(defaultPackage)
 
     FileGenerator.generateZip(artifact, fileStructure)
   }

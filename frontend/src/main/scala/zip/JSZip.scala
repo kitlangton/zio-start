@@ -44,7 +44,15 @@ object FileStructure {
     def add(path: String*)(files: FileStructure*): Folder = add(path.toList, files.toList)
   }
 
-  final case class File(name: String, contents: String) extends FileStructure
+  final case class File(name: String, contents: String) extends FileStructure {
+    def language: String =
+      name.split('.').lastOption.getOrElse("text") match {
+        case "md"  => "markdown"
+        case "sbt" => "scala"
+        case _     => "scala"
+      }
+
+  }
 
   def folderPath(path: String, paths: String*)(contents: FileStructure*): Folder =
     Folder(path, List.empty).add(paths.toList, contents.toList)
