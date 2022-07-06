@@ -176,7 +176,7 @@ organization := "$group"
 name := "$artifact"
 description := "A very special project generated with zio-start. Good luck!"
 version := "0.1.0"
-scalaVersion := "2.13.8"
+ThisBuild/scalaVersion := "2.13.8"
 
 val zioVersion = "${Dependency.zioVersion}"
 
