@@ -1,8 +1,12 @@
+.bloop/
 .bsp/
 .idea/
+.metals/
+.vscode/
 node_modules/
 target/
 project/project
+project/metals.sbt
 
 # Local Netlify folder
 .netlify
