@@ -84,17 +84,18 @@ object FileGenerator {
     group: String,
     artifact: String,
     packageName: String,
+    description: String,
     dependencies: List[Dependency]
   ): FileStructure = {
 
-    val buildSbt = generateBuildSbt(group, artifact, dependencies)
+    val buildSbt = generateBuildSbt(group, artifact, description, dependencies)
 
     val readmeFile =
       FileStructure.File(
         "README.md",
         s"""
            |# $artifact
-           |Good luck with your incredible project!
+           |$description
            |
            |Generated with [zio-start](http://zio-start.surge.sh)
            |""".stripMargin
@@ -163,7 +164,7 @@ object MainSpec extends ZIOSpecDefault {
   def indent(string: String, indent: Int): String =
     string.split("\n").map((" " * indent) + _).mkString("\n")
 
-  private def generateBuildSbt(group: String, artifact: String, dependencies: List[Dependency]) = {
+  private def generateBuildSbt(group: String, artifact: String, description: String, dependencies: List[Dependency]) = {
     val dependenciesString = dependencies.map { dependency =>
       val separator = if (dependency.isJava) "%" else "%%"
       s""""${dependency.group}" $separator "${dependency.artifact}" % "${dependency.version}""""
@@ -174,7 +175,7 @@ object MainSpec extends ZIOSpecDefault {
       s"""
 organization := "$group"
 name := "$artifact"
-description := "A very special project generated with zio-start. Good luck!"
+description := "$description"
 version := "0.1.0"
 ThisBuild/scalaVersion := "2.13.8"
 

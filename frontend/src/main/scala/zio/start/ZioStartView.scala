@@ -149,11 +149,12 @@ final case class FilePreview(fileStructure: FileStructure) extends Component {
 
 object ZioStartView extends Component {
 
-  val groupVar    = Var("")
-  val artifactVar = Var("")
-  val packageVar  = Var("")
-  val queryVar    = Var("")
-  val searchIndex = Var(0)
+  val groupVar       = Var("")
+  val artifactVar    = Var("")
+  val packageVar     = Var("")
+  val descriptionVar = Var("")
+  val queryVar       = Var("")
+  val searchIndex    = Var(0)
 
   val searchMode     = Var(false)
   val generatedFile  = Var(Option.empty[FileStructure])
@@ -175,13 +176,13 @@ object ZioStartView extends Component {
   val $searchIndex: Signal[Int] =
     searchIndex.signal
 
-  val $groupDefault =
+  val $groupDefault: Signal[String] =
     groupVar.signal.map { str =>
       if (str.isEmpty) "com.kitlangton"
       else str
     }
 
-  val $artifactDefault =
+  val $artifactDefault: Signal[String] =
     artifactVar.signal.map { str =>
       if (str.isEmpty) "zio-start".replace("-", ".")
       else str
@@ -190,6 +191,12 @@ object ZioStartView extends Component {
   val $packageDefault: Signal[String] =
     $groupDefault.combineWithFn($artifactDefault) { (group, artifact) =>
       s"$group.${artifact.replace("-", ".")}"
+    }
+
+  val $descriptionDefault: Signal[String] =
+    descriptionVar.signal.map { str =>
+      if (str.isEmpty) "An incredible project."
+      else str
     }
 
   def body =
@@ -329,7 +336,12 @@ object ZioStartView extends Component {
               "package",
               packageVar,
               $packageDefault,
-              _.replace(" ", "."),
+              _.replace(" ", ".")
+            ),
+            FormField(
+              "description",
+              descriptionVar,
+              Val("An incredible project."),
               handleTab = Some(() => searchMode.set(true))
             )
           )
@@ -545,12 +557,14 @@ object ZioStartView extends Component {
     val group       = notBlankOrElse(groupVar.now(), "com.kitlangton")
     val artifact    = notBlankOrElse(artifactVar.now(), "zio-start")
     val packageName = notBlankOrElse(packageVar.now(), defaultPackage)
+    val description = notBlankOrElse(descriptionVar.now(), "An incredible project.")
     val selected    = selectedDependencies.now()
 
     FileGenerator.generateFileStructure(
       group,
       artifact,
       packageName,
+      description,
       selected.toList
         .flatMap(d => d :: d.included)
         .distinct
