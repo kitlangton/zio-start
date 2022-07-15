@@ -152,6 +152,7 @@ object ZioStartView extends Component {
   val groupVar        = Var("")
   val artifactVar     = Var("")
   val packageVar      = Var("")
+  val descriptionVar  = Var("")
   val queryVar        = Var("")
   val scalaVersionVar = Var("")
   val searchIndex     = Var(0)
@@ -565,6 +566,7 @@ object ZioStartView extends Component {
     val group        = notBlankOrElse(groupVar.now(), "com.kitlangton")
     val artifact     = notBlankOrElse(artifactVar.now(), "zio-start")
     val packageName  = notBlankOrElse(packageVar.now(), defaultPackage)
+    val description  = notBlankOrElse(descriptionVar.now(), "An incredible project.")
     val selected     = selectedDependencies.now()
 
     FileGenerator.generateFileStructure(
