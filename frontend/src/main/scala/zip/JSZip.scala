@@ -89,7 +89,7 @@ object FileGenerator {
     dependencies: List[Dependency]
   ): FileStructure = {
 
-    val buildSbt = generateBuildSbt(scalaVersion, group, artifact, dependencies)
+    val buildSbt = generateBuildSbt(scalaVersion, group, artifact, description, dependencies)
     val scalafmtFile = generateScalafmtFile(scalaVersion)
 
     val readmeFile =
@@ -166,7 +166,7 @@ object MainSpec extends ZIOSpecDefault {
   def indent(string: String, indent: Int): String =
     string.split("\n").map((" " * indent) + _).mkString("\n")
 
-  private def generateBuildSbt(scalaVersion: String, group: String, artifact: String, dependencies: List[Dependency]) = {
+  private def generateBuildSbt(scalaVersion: String, group: String, artifact: String, description: String, dependencies: List[Dependency]) = {
     val dependenciesString = dependencies.map { dependency =>
       val separator = if (dependency.isJava) "%" else "%%"
       s""""${dependency.group}" $separator "${dependency.artifact}" % "${dependency.version}""""
